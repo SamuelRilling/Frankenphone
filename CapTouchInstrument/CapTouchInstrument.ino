@@ -34,11 +34,10 @@ static const uint8_t MPR121_ADDR_B = 0x5B;  // ADDR tied to 3.3V
 static const uint32_t I2C_FREQUENCY_HZ = 400000; // Fast-mode I2C
 static const uint32_t I2C_TIMEOUT_MS = 50;       // Avoid long blocking
 
-// Audio (LEDC PWM) on ESP32
+// Audio (LEDC PWM) on ESP32 (Arduino-ESP32 v3 pin-based API)
 static const uint8_t TONE_PIN = 25;
-static const uint8_t LEDC_CHANNEL = 0;     // Use channel 0
 static const uint8_t LEDC_RES_BITS = 10;   // 10-bit resolution
-static const uint32_t LEDC_BASE_FREQ = 1000; // Initial dummy frequency
+static const uint32_t LEDC_BASE_FREQ = 1000; // Initial attach frequency
 
 static const uint8_t NUM_PADS = 12;        // MPR121 has 12 electrodes
 
@@ -80,7 +79,7 @@ static const int PAD_FREQUENCIES_B[NUM_PADS] = {
 void stopTone()
 {
   // Silence by setting duty to 0
-  ledcWrite(LEDC_CHANNEL, 0);
+  ledcWrite(TONE_PIN, 0);
   currentFrequency = 0;
 }
 
@@ -96,11 +95,11 @@ void startTone(int frequencyHz)
   }
 
   // Configure tone frequency; duty will remain whatever last set by ledcWrite
-  ledcWriteTone(LEDC_CHANNEL, (double)frequencyHz);
+  ledcWriteTone(TONE_PIN, (double)frequencyHz);
 
   // Set duty to 50% of max for audible volume (scales with resolution)
   const uint32_t maxDuty = (1UL << LEDC_RES_BITS) - 1;
-  ledcWrite(LEDC_CHANNEL, maxDuty / 2);
+  ledcWrite(TONE_PIN, maxDuty / 2);
 
   currentFrequency = frequencyHz;
 }
@@ -174,9 +173,10 @@ void setup()
   I2C_BUS_B.begin(I2C1_SDA_PIN, I2C1_SCL_PIN, I2C_FREQUENCY_HZ);
   I2C_BUS_B.setTimeOut(I2C_TIMEOUT_MS);
 
-  // Initialize LEDC for audio
-  ledcSetup(LEDC_CHANNEL, LEDC_BASE_FREQ, LEDC_RES_BITS);
-  ledcAttachPin(TONE_PIN, LEDC_CHANNEL);
+  // Initialize LEDC for audio (v3 API)
+  if (!ledcAttach(TONE_PIN, LEDC_BASE_FREQ, LEDC_RES_BITS)) {
+    Serial.println("LEDC attach failed on pin 25");
+  }
   stopTone();
 
   // Initialize sensors. If a sensor is missing, continue without resetting.
